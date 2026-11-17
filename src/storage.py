@@ -1,11 +1,14 @@
 import logging
 import sqlite3
+
 import pandas as pd
+
 from .database import get_connection, initialize_database
 
 logger = logging.getLogger(__name__)
 
 MOVIE_COLUMNS = ["title", "release_year", "rating", "genre"]
+
 
 class MovieStorage:
     def __init__(self, db_path="data/movies.db"):
@@ -14,19 +17,29 @@ class MovieStorage:
 
     def save(self, df):
         """Replace all movie rows in one transaction."""
-        clean = df[MOVIE_COLUMNS].astype(object).where(df[MOVIE_COLUMNS].notna(), None) 
-        rows_to_insert = list(clean.itertuples(index=False, name=None))
-        
+        # Convert every value to a plain Python type, and missing values to None (SQL NULL).
+        rows_to_insert = []
+        for row in df[MOVIE_COLUMNS].itertuples(index=False, name=None):
+            clean_row = []
+            for value in row:
+                if pd.isna(value):
+                    clean_row.append(None)
+                elif hasattr(value, "item"):
+                    clean_row.append(value.item())  # numpy scalar -> Python
+                else:
+                    clean_row.append(value)
+            rows_to_insert.append(tuple(clean_row))
+
         connection = get_connection(self.db_path)
         try:
             with connection:
                 connection.execute("DELETE FROM movies")
-                rows_to_insert = df_clean[MOVIE_COLUMNS].to_records(index=False).tolist()
                 connection.executemany(
-                    "INSERT INTO movies (title, release_year, rating, genre) VALUES (?, ?, ?, ?)",
-                    rows_to_insert
+                    "INSERT INTO movies (title, release_year, rating, genre) "
+                    "VALUES (?, ?, ?, ?)",
+                    rows_to_insert,
                 )
-            logger.debug(f"Stored movies in SQLite: rows={len(df_clean)}")
+            logger.debug(f"Stored movies in SQLite: rows={len(rows_to_insert)}")
         except sqlite3.Error as e:
             logger.error(f"Database error during save: {e}")
             raise
@@ -37,11 +50,11 @@ class MovieStorage:
         """Return the four movie columns as a DataFrame, ordered by id."""
         connection = get_connection(self.db_path)
         try:
-            query = "SELECT title, release_year, rating, genre FROM movies ORDER BY id"
-            df = pd.read_sql_query(query, connection)
-            if df.empty:
-                return pd.DataFrame(columns=MOVIE_COLUMNS)
-            return df[MOVIE_COLUMNS]
+            cursor = connection.execute(
+                "SELECT title, release_year, rating, genre FROM movies ORDER BY id"
+            )
+            rows = [tuple(row) for row in cursor.fetchall()]
+            return pd.DataFrame(rows, columns=MOVIE_COLUMNS)
         finally:
             connection.close()
 
@@ -58,8 +71,10 @@ class MovieStorage:
         selected_columns = ", ".join(["id"] + columns)
         connection = get_connection(self.db_path)
         try:
-            query = f"SELECT {selected_columns} FROM movies ORDER BY id LIMIT ?"
-            cursor = connection.execute(query, (limit,))
+            cursor = connection.execute(
+                f"SELECT {selected_columns} FROM movies ORDER BY id LIMIT ?",
+                (limit,),
+            )
             rows = [dict(row) for row in cursor.fetchall()]
             logger.debug(f"Selected columns {columns}, fetched {len(rows)} rows")
             return rows
@@ -71,8 +86,7 @@ class MovieStorage:
         connection = get_connection(self.db_path)
         try:
             cursor = connection.execute("SELECT COUNT(*) FROM movies")
-            count = cursor.fetchone()[0]
-            return count
+            return cursor.fetchone()[0]
         finally:
             connection.close()
 
@@ -89,16 +103,16 @@ class MovieStorage:
         selected_columns = ", ".join(["id"] + columns)
         connection = get_connection(self.db_path)
         try:
-            query = f"""
-                SELECT {selected_columns} 
-                FROM movies 
-                WHERE rating >= ? 
-                ORDER BY rating DESC, id ASC 
-                LIMIT ?
-            """
-            cursor = connection.execute(query, (min_rating, limit))
+            cursor = connection.execute(
+                f"SELECT {selected_columns} FROM movies "
+                "WHERE rating >= ? ORDER BY rating DESC, id ASC LIMIT ?",
+                (min_rating, limit),
+            )
             rows = [dict(row) for row in cursor.fetchall()]
-            logger.debug(f"Queried movies: columns={columns}, min_rating={min_rating}, returned_rows={len(rows)}")
+            logger.debug(
+                f"Queried movies: columns={columns}, min_rating={min_rating}, "
+                f"returned_rows={len(rows)}"
+            )
             return rows
         finally:
             connection.close()
