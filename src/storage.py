@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 import pandas as pd
-from src.database import get_connection, initialize_database
+from .database import get_connection, initialize_database
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,6 @@ class MovieStorage:
         try:
             with connection:
                 connection.execute("DELETE FROM movies")
-                # Insert rows matching MOVIE_COLUMNS order
                 rows_to_insert = df_clean[MOVIE_COLUMNS].to_records(index=False).tolist()
                 connection.executemany(
                     "INSERT INTO movies (title, release_year, rating, genre) VALUES (?, ?, ?, ?)",
@@ -47,7 +46,7 @@ class MovieStorage:
             connection.close()
 
     def select_columns(self, columns, limit=5):
-        """Return id plus requested movie columns, ordered by id."""
+        """Return id plus the requested movie columns, ordered by id."""
         if not columns:
             logger.error("Select at least one column")
             raise ValueError("Select at least one column")
