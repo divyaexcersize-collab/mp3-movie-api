@@ -1,1 +1,4 @@
 # mp3-movie-api
+This project is basically a FastAPI movie app that stores a collection of movies in a SQLite database. main.py handles all the endpoints, while the src folder takes care of the backend logic—models.py for data shapes, database.py for setting up the table, storage.py for SQL operations, cache.py for caching, and middleware.py for request logging. We also kept the data_pipeline folder from MP1 for checking and cleaning data.
+
+When you upload a CSV, the API checks that it has the right four columns and at least one row, then replaces the old database records with the new ones. If you hit the process endpoint, it grabs the saved movies, cleans them up and saves the updated version back. To keep things fast, the app caches movie queries for 90 seconds, but it automatically clears the cache whenever an upload or process call happens so you never get stuck with previous results.
