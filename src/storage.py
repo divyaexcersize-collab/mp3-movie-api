@@ -14,8 +14,8 @@ class MovieStorage:
 
     def save(self, df):
         """Replace all movie rows in one transaction."""
-        # Convert missing values to Python None for SQL NULL
-        df_clean = df.where(pd.notnull(df), None)
+        clean = df[MOVIE_COLUMNS].astype(object).where(df[MOVIE_COLUMNS].notna(), None) 
+        rows_to_insert = list(clean.itertuples(index=False, name=None))
         
         connection = get_connection(self.db_path)
         try:
