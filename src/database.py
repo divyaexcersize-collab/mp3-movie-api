@@ -15,7 +15,7 @@ def initialize_database(db_path):
     try:
         connection.execute("""
             CREATE TABLE IF NOT EXISTS movies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 title TEXT,
                 release_year INTEGER,
                 rating REAL,
